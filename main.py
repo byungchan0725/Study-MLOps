@@ -43,10 +43,8 @@ class ConvNet(nn.Module):
         x = self.fc(x)
         return x
 
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = ConvNet()  # 모델 인스턴스 생성
-model.to(device)
-model.eval()
 
 
 # 홈 페이지 라우팅
@@ -58,6 +56,10 @@ async def home(request: Request):
 # 이미지 예측 핸들러
 @app.post("/predict")
 async def predict(request: Request, image: UploadFile = File(...)):
+    model = ConvNet()  # 모델 인스턴스 생성
+    model.to(device)
+    model.eval()
+
     # 이미지를 PIL 이미지로 열기
     img = Image.open(io.BytesIO(await image.read()))
 
