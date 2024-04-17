@@ -1,20 +1,20 @@
+import io
 import torch
 import torchvision.transforms as transforms
 import torch.nn as nn
 
 from PIL import Image
-from fastapi import FastAPI
-from fastapi import Request
+from fastapi import FastAPI, Request, File, UploadFile
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 
-templates = Jinja2Templates(directory="templates")  # html 코드를 사용하기 위한 코드
-
+templates = Jinja2Templates(directory="templates")  # HTML 코드를 사용하기 위한 설정
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")  # css, js 코드를 사용하기 위한 코드
+app.mount("/static", StaticFiles(directory="static"), name="static")  # CSS, JS 코드를 사용하기 위한 설정
 
-class ConvNet(nn.Module):  # 모델 정의
+
+# 모델 정의
+class ConvNet(nn.Module):
     def __init__(self):
         super(ConvNet, self).__init__()
 
@@ -43,21 +43,35 @@ class ConvNet(nn.Module):  # 모델 정의
         x = self.fc(x)
         return x
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = ConvNet()  # 모델 인스턴스 생성
+model.to(device)
+model.eval()
 
+
+# 홈 페이지 라우팅
 @app.get("/")
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/upload")
-async def upload(request: Request):
-    return templates.TemplateResponse("upload.html", {"request": request})
+# 이미지 예측 핸들러
+@app.post("/predict")
+async def predict(request: Request, image: UploadFile = File(...)):
+    # 이미지를 PIL 이미지로 열기
+    img = Image.open(io.BytesIO(await image.read()))
 
+    # 이미지를 모델이 처리할 수 있는 형식으로 변환 (예: RGB, 텐서로 변환 등)
+    transform = transforms.Compose([
+        transforms.Resize((28, 28)),  # 이미지 크기 조정
+        transforms.Grayscale(),
+        transforms.ToTensor(),         # 텐서로 변환
+    ])
+    img = transform(img).unsqueeze(0)  # 배치 차원 추가
 
-@app.post("/result")
-async def result(request: Request):
-    image = Image.open("image.jpg")
-    input_tensor = transform(image)
-    input_batch = input_tensor.unsqueeze(0)
+    # 모델에 이미지 전달하여 예측 수행
+    output = model(img)
 
-    return templates.TemplateResponse("result.html", {"request": request})
+    # 예측 결과 출력
+    prediction = output.argmax(dim=1).item()
+    return {"prediction": prediction}
